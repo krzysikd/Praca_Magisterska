@@ -2,28 +2,104 @@
 
 ## Opis projektu
 
-Celem mojej pracy było lepsze zrozumienie, jak kształtują się opłaty transakcyjne w sieci Bitcoin i czy jesteśmy w stanie je skutecznie przewidywać, na podstawie danych samodzielnie pozyskanych z blockchaina. 
+Celem projektu było lepsze zrozumienie, jak kształtują się opłaty transakcyjne w sieci Bitcoin oraz ocena możliwości ich skutecznego prognozowania na podstawie danych samodzielnie pozyskanych z blockchaina.
 
-Chciałem również porównać dwa podejścia prognostyczne:
+Porównano dwa podejścia prognostyczne:
 
 - **Wielowymiarowe** – oparte na wielu cechach opisujących dany blok i transakcje,
-- **Jednowymiarowe** – które można zastosować w bardziej praktycznych przypadkach, gdy mamy dostęp tylko do podstawowych informacji, takich jak numer bloku czy czas.
+- **Jednowymiarowe** – możliwe do zastosowania w praktycznych przypadkach, gdy dostępne są tylko podstawowe informacje (np. numer bloku, czas).
 
-Dzięki temu mogłem ocenić skuteczność różnych modeli prognozowania opłat w różnych warunkach oraz lepiej zrozumieć specyfikę działania sieci Bitcoin.
+Pozwoliło to na ocenę skuteczności modeli w różnych warunkach oraz lepsze zrozumienie mechanizmów działania sieci Bitcoin.
 
 ## Automatyczne pozyskiwanie i przetwarzanie danych z blockchaina Bitcoina
 
-W celu pozyskania danych połączyłem się przez VPN z serwerem koła naukowego, gdzie zainstalowałem i odpowiednio skonfigurowałem pełny węzeł Bitcoin Core.
+W celu pozyskania danych nawiązano połączenie VPN z serwerem koła naukowego, gdzie zainstalowano i skonfigurowano pełny węzeł Bitcoin Core.
 
 <p align="center">
   <img src="screenshots/screeny/blockchain-info.JPG" alt="BlockchainInfo" />
 </p>
 
-Dane o blokach były automatycznie pobierane w ustalonych zakresach za pomocą skryptu [`Pobierz_Bloki_V4.py`](data_download/Pobierz_Bloki_V4.py), napisanego w Pythonie. Początkowo zapisywałem je w formacie CSV, jednak szybko okazało się, że ich rozmiar stanowi problem. Z tego względu przeszedłem na format **Parquet**, który jest znacznie bardziej wydajny przy pracy z dużymi zbiorami danych.
+Dane o blokach były automatycznie pobierane w ustalonych zakresach za pomocą skryptu [`Pobierz_Bloki_V4.py`](data_download/Pobierz_Bloki_V4.py), napisanego w Pythonie. Początkowo dane zapisywano w formacie CSV, jednak ze względu na duży rozmiar plików, zdecydowano się na format **Parquet**, znacznie wydajniejszy przy pracy z dużymi zbiorami.
 
-Następnie stworzyłem skrypt [`Pobierz_Probke.py`](data_download/Pobierz_Probke.py), który losowo wybiera 1% rekordów z każdego pliku. Dzięki temu mogłem wygenerować próbkę, która:
+Następnie użyto skryptu [`Pobierz_Probke.py`](data_download/Pobierz_Probke.py), który losowo wybiera 1% rekordów z każdego pliku. Dzięki temu wygenerowano próbkę, która:
 
 - zachowuje chronologię oryginalnych danych,
-- a jednocześnie jest na tyle mała, że da się ją wygodnie analizować i modelować w kolejnych etapach pracy.
+- a jednocześnie jest wystarczająco mała, by umożliwić efektywną analizę i modelowanie.
+
+## Eksploracyjna analiza danych (EDA)
+
+W ramach eksploracyjnej analizy danych (EDA) przeprowadzono szereg wizualizacji i analiz statystycznych, mających na celu lepsze zrozumienie zależności pomiędzy cechami zbioru danych. Przeanalizowano m.in. zmienność liczby transakcji w bloku, wartość przesyłanych środków, rozmiar bloków, nagrody dla górników oraz wysokość opłat transakcyjnych.
+
+Dodatkowo, korzystając z platformy [https://www.blockchain.com](https://www.blockchain.com/explorer/charts/market-price), w dniu 18 lutego 2025 roku pobrano plik JSON zawierający historyczne dane cenowe Bitcoina. Dane te stanowią cenne uzupełnienie zbioru danych, umożliwiając porównanie zmian cenowych z innymi parametrami blockchaina. Uwzględnienie danych cenowych przyczyniło się do lepszego zrozumienia dynamiki ekosystemu Bitcoina.
+
+### Rysunek 3.6: Średnia opłata transakcyjna w USD (tygodniowo) vs. Cena Bitcoina
+
+<p align="center">
+  <img src="screenshots/VSC/oplataUSD_cenaBTC.png" alt="OplataCena" />
+</p>
+
+Wykres ukazuje zależność pomiędzy średnią opłatą transakcyjną wyrażoną w USD a ceną Bitcoina. Zauważalna jest ogólna zgodność trendów – w okresach wzrostu ceny Bitcoina obserwuje się również wzrost opłat, co może świadczyć o zwiększonym obciążeniu sieci i rosnącym zainteresowaniu użytkowników.
+
+### Rysunek 3.7: Macierz korelacji (Pearsona)
+
+<p align="center">
+  <img src="screenshots/VSC/macierz_korealacji.png" alt="MacierzKorelacji" />
+</p>
+
+Analiza macierzy korelacji pozwala wskazać kilka istotnych zależności:
+
+- **Silna dodatnia korelacja** pomiędzy `block_height` a `timestamp` (~1) – wynika z rosnącej struktury blockchaina.
+- **Silna dodatnia korelacja** między `input_value` a `output_value` (~1) – różnica między nimi to opłata transakcyjna, zazwyczaj niewielka.
+- **Silna korelacja** między `size` a `weight` (~0.91) – obie zmienne opisują rozmiar danych w bloku.
+- **Silna ujemna korelacja** `block_height` a `miner_reward` (~-0.88) – odzwierciedla wpływ halvingu na zmniejszającą się nagrodę blokową.
+- Pozostałe zmienne wykazują słabe korelacje z innymi cechami, w tym opłatami.
+
+## Przetwarzanie danych
+
+W celu przygotowania danych do trenowania modeli predykcyjnych wykonano następujące kroki:
+
+- **Imputacja braków danych** – nie stwierdzono brakujących wartości.
+- **Inżynieria cech** – na podstawie daty utworzono nowe zmienne: rok, miesiąc, dzień, dzień tygodnia.
+- **Podział danych**:
+  - `train`: 2009-01-09 — 2022-01-01  
+  - `validation`: 2022-01-01 — 2024-01-01  
+  - `test`: 2024-01-01 — 2024-12-16
+- **Selekcja zmiennych** – wykorzystano tylko kolumny numeryczne oraz `DayOfWeek` jako cechę kategoryczną.
+- **Skalowanie danych** – zastosowano `MinMaxScaler` do przeskalowania danych numerycznych.
+- **Kodowanie kategorii** – użyto one-hot encoding dla zmiennej `DayOfWeek`.
+
+## Trenowanie i ocena modeli wielowymiarowych
+
+Na podstawie danych wyodrębniono szereg cech opisujących bloki i transakcje w sieci Bitcoin, które posłużyły jako wejście do klasycznych modeli regresyjnych.
+
+Przetestowano różne algorytmy, m.in.:
+- Regresję liniową i jej warianty (Ridge, ElasticNet),
+- Drzewa decyzyjne,
+- Random Forest,
+- Gradient Boosting,
+- XGBoost.
+
+Modele oparte na drzewach (szczególnie XGBoost) osiągały lepsze wyniki niż klasyczne regresje, co uzasadniło ich dalsze wykorzystanie.
+
+## Dostrajanie hiperparametrów
+
+W kolejnym kroku skupiono się na dostrojeniu modelu **XGBoost**, wykorzystując zarówno ręczne modyfikacje, jak i automatyczne przeszukiwanie siatki parametrów z użyciem `GridSearchCV`. Zastosowano 3-krotną walidację krzyżową dla 18 konfiguracji, by znaleźć optymalne ustawienia.
+
+**Najlepsze parametry uzyskane w GridSearchCV:**
+```python
+{'learning_rate': 0.06, 'max_depth': 6, 'n_estimators': 330}
+```
+
+Dzięki temu udało się poprawić RMSE oraz współczynnik $R^2$, co wskazuje na lepsze dopasowanie i większą ogólność modelu.
+
+## Predykcja na zbiorze testowym
+
+Wytrenowany model XGBoost po dostrojeniu przetestowano na niezależnym zbiorze testowym. Wyniki wskazują na średni błąd RMSE wynoszący ~0.00065 BTC oraz umiarkowane $R^2$ (~0.23), co oznacza, że model tylko częściowo oddaje zmienność danych.
+
+<p align="center">
+  <img src="screenshots/VSC/PrognozowanieGridSearchCV.png" alt="PrognozowanieGridSearchCV" width="90%" />
+</p>
+
+Model miał trudności z przewidywaniem nagłych skoków opłat – szczególnie w okolicach halvingu Bitcoina – co może sugerować konieczność użycia bardziej zaawansowanych lub nieliniowych podejść w przyszłości.
 
 
