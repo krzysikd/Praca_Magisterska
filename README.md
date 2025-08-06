@@ -19,9 +19,9 @@ W celu pozyskania danych połączyłem się przez VPN z serwerem koła naukowego
   <img src="screenshots/screeny/blockchain-info.JPG" alt="BlockchainInfo" />
 </p>
 
-Dane o blokach były automatycznie pobierane w ustalonych zakresach za pomocą [skryptu `Pobierz_Bloki_V4.py`](data_download/Pobierz_Bloki_V4.py), napisanego w Pythonie. Początkowo zapisywałem je w formacie CSV, jednak szybko okazało się, że ich rozmiar stanowi problem. Z tego względu przeszedłem na format **Parquet**, który jest znacznie bardziej wydajny przy pracy z dużymi zbiorami danych.
+Dane o blokach były automatycznie pobierane w ustalonych zakresach za pomocą skryptu [`Pobierz_Bloki_V4.py`](data_download/Pobierz_Bloki_V4.py), napisanego w Pythonie. Początkowo zapisywałem je w formacie CSV, jednak szybko okazało się, że ich rozmiar stanowi problem. Z tego względu przeszedłem na format **Parquet**, który jest znacznie bardziej wydajny przy pracy z dużymi zbiorami danych.
 
-Następnie stworzyłem [skrypt `Pobierz_Probke.py`](data_download/Pobierz_Probke.py), który losowo wybiera 1% rekordów z każdego pliku. Dzięki temu mogłem wygenerować próbkę, która:
+Następnie stworzyłem skrypt [`Pobierz_Probke.py`](data_download/Pobierz_Probke.py), który losowo wybiera 1% rekordów z każdego pliku. Dzięki temu mogłem wygenerować próbkę, która:
 
 - zachowuje chronologię oryginalnych danych,
 - a jednocześnie jest na tyle mała, że da się ją wygodnie analizować i modelować w kolejnych etapach pracy.
