@@ -102,4 +102,39 @@ Wytrenowany model XGBoost po dostrojeniu przetestowano na niezależnym zbiorze t
 
 Model miał trudności z przewidywaniem nagłych skoków opłat – szczególnie w okolicach halvingu Bitcoina – co może sugerować konieczność użycia bardziej zaawansowanych lub nieliniowych podejść w przyszłości.
 
+## Modele jednowymiarowe
 
+W tej części pracy skupiono się na prognozowaniu opłat transakcyjnych na podstawie **pojedynczej zmiennej czasowej** – wysokości bloku (`block_height`). Podejście to symuluje scenariusz, w którym nie mamy dostępu do szczegółowych danych o transakcjach, lecz chcemy przewidywać opłaty na podstawie samego przebiegu czasu.
+
+Zrealizowano dwa podejścia:
+
+- **Regresja liniowa**, wykorzystująca sam numer bloku jako predyktor.
+- **Model SARIMA**, uwzględniający sezonowość i autokorelację w szeregu czasowym.
+
+Zbiór treningowy obejmował dane od pierwszego do trzeciego halvingu, a testowy – od trzeciego halvingu wzwyż.
+
+**Wyniki:**
+
+- Regresja liniowa sprawdziła się jako punkt odniesienia, lecz nie radziła sobie z sezonowością ani gwałtownymi zmianami opłat.
+- Model **SARIMA(1,1,1)(2,1,1)[144]** znacznie lepiej uchwycił dynamikę zmian, w tym niektóre skoki cenowe.
+
+<p align="center">
+  <img src="screenshots/VSC/SARIMA_USD.PNG" alt="SARIMA" width="90%" />
+</p>
+
+SARIMA wykazała wyraźnie lepsze dopasowanie do danych testowych niż regresja liniowa, choć nadal miała problemy z przewidywaniem ekstremalnych skoków opłat. Pokazuje to potencjał modeli szeregów czasowych przy ograniczonym zakresie danych wejściowych.
+
+## Podsumowanie
+
+Projekt miał na celu analizę i prognozowanie opłat transakcyjnych w sieci Bitcoin przy użyciu danych on-chain oraz rynkowych. Opracowano kompletny pipeline obejmujący pobieranie danych z węzła Bitcoin Core (RPC), ich przetwarzanie oraz eksplorację.
+
+W części modelowej zastosowano zarówno:
+
+- **modele wielowymiarowe** (regresja liniowa, Ridge, ElasticNet, Random Forest, XGBoost), jak i  
+- **modele jednowymiarowe** (regresja liniowa, SARIMA) bazujące wyłącznie na numerze bloku (`block_height`).
+
+Najlepsze wyniki osiągnął model **XGBoost**, zoptymalizowany przy użyciu `GridSearchCV` (`learning_rate=0.06`, `max_depth=6`, `n_estimators=330`), uzyskując **R² ≈ 23%** na zbiorze testowym. Choć wartości te nie są wysokie, odzwierciedlają złożoność zjawiska – opłaty transakcyjne są silnie zależne od nieregularnych i trudnych do przewidzenia czynników rynkowych.
+
+Modele jednowymiarowe, mimo prostoty, nie były w stanie uchwycić zmienności danych – **R² regresji liniowej ≈ 2%**, **SARIMA < 0%** – co wskazuje na ich ograniczoną praktyczność w dokładnym prognozowaniu.
+
+Warto przypomnieć, że analiza oparta była na 1% próbie danych. Użycie pełnych danych mogłoby znacząco poprawić trafność modeli. Dalsze kierunki rozwoju to m.in. użycie sieci neuronowych, podejść hybrydowych oraz uwzględnienie danych sentymentu rynkowego (np. z mediów społecznościowych).
