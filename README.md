@@ -1,3 +1,7 @@
+# English version below
+
+[Go to English version](#analysis-and-forecasting-of-bitcoin-network-transaction-fees)
+
 # Analiza i prognozowanie opłat transakcyjnych sieci Bitcoina
 
 ## Opis projektu
@@ -138,3 +142,157 @@ Najlepsze wyniki osiągnął model **XGBoost**, zoptymalizowany przy użyciu `Gr
 Modele jednowymiarowe, mimo prostoty, nie były w stanie uchwycić zmienności danych – **R² regresji liniowej ≈ 2%**, **SARIMA < 0%** – co wskazuje na ich ograniczoną praktyczność w dokładnym prognozowaniu.
 
 Warto przypomnieć, że analiza oparta była na 1% próbie danych. Użycie pełnych danych mogłoby znacząco poprawić trafność modeli. Dalsze kierunki rozwoju to m.in. użycie sieci neuronowych, podejść hybrydowych oraz uwzględnienie danych sentymentu rynkowego (np. z mediów społecznościowych).
+
+# Analysis and Forecasting of Bitcoin Network Transaction Fees
+
+## Project Description
+
+The aim of this project was to gain a better understanding of how transaction fees in the Bitcoin network evolve and to assess the feasibility of effectively forecasting them based on data independently obtained from the blockchain.
+
+Two forecasting approaches were compared:
+
+- **Multivariate** – based on multiple features describing each block and its transactions,  
+- **Univariate** – applicable in practical cases when only basic information is available (e.g., block number, timestamp).
+
+This comparison made it possible to evaluate model performance under different conditions and gain deeper insight into the mechanisms of the Bitcoin network.
+
+## Automated Data Acquisition and Processing from the Bitcoin Blockchain
+
+To acquire the data, a VPN connection was established with a research group’s server, where a full Bitcoin Core node was installed and configured.
+
+<p align="center">
+  <img src="screenshots/screeny/blockchain-info.JPG" alt="BlockchainInfo" />
+</p>
+
+Block data was automatically retrieved in predefined ranges using the Python script [`Pobierz_Bloki_V4.py`](data_download/Pobierz_Bloki_V4.py). Initially, the data was saved in CSV format, but due to large file sizes, the **Parquet** format was adopted, offering much better performance for large datasets.
+
+Next, the script [`Pobierz_Probke.py`](data_download/Pobierz_Probke.py) was used to randomly sample 1% of the records from each file. This produced a sample that:
+
+- preserved the chronological order of the original dataset,
+- was small enough for efficient analysis and modeling.
+
+## Exploratory Data Analysis (EDA)
+
+A variety of visualizations and statistical analyses were carried out to better understand relationships between dataset features. This included examining variability in the number of transactions per block, transferred value, block size, miner rewards, and transaction fees.
+
+Additionally, on February 18, 2025, a JSON file containing historical Bitcoin price data was downloaded from [https://www.blockchain.com](https://www.blockchain.com/explorer/charts/market-price). These data complemented the on-chain dataset, allowing comparisons between price changes and other blockchain parameters. Incorporating price data helped to better understand Bitcoin’s ecosystem dynamics.
+
+### Figure 3.6: Average Transaction Fee in USD (Weekly) vs. Bitcoin Price
+
+<p align="center">
+  <img src="screenshots/VSC/oplataUSD_cenaBTC.png" alt="OplataCena" />
+</p>
+
+The chart shows the relationship between the average transaction fee in USD and the Bitcoin price. There is a general alignment of trends – during periods of rising Bitcoin prices, transaction fees tend to increase as well, potentially indicating higher network demand and increased user activity.
+
+### Figure 3.7: Pearson Correlation Matrix
+
+<p align="center">
+  <img src="screenshots/VSC/macierz_korealacji.png" alt="MacierzKorelacji" />
+</p>
+
+Key insights from the correlation matrix analysis:
+
+- **Strong positive correlation** between `block_height` and `timestamp` (~1) – due to the blockchain’s sequential structure.
+- **Strong positive correlation** between `input_value` and `output_value` (~1) – their difference is the transaction fee, which is usually small.
+- **Strong correlation** between `size` and `weight` (~0.91) – both describe the block’s data size.
+- **Strong negative correlation** between `block_height` and `miner_reward` (~-0.88) – reflects the halving effect reducing block rewards.
+- Other variables showed weak correlations with transaction fees.
+
+## Data Processing
+
+To prepare the data for predictive modeling, the following steps were taken:
+
+- **Missing values imputation** – no missing values were found.  
+- **Feature engineering** – extracted year, month, day, and day of the week from the timestamp.  
+- **Data splitting**:
+  - `train`: 2009-01-09 — 2022-01-01  
+  - `validation`: 2022-01-01 — 2024-01-01  
+  - `test`: 2024-01-01 — 2024-12-16
+- **Feature selection** – used only numeric columns and `DayOfWeek` as a categorical feature.  
+- **Scaling** – applied `MinMaxScaler` to numeric features.  
+- **Encoding** – applied one-hot encoding to the `DayOfWeek` variable.
+
+## Training and Evaluation of Multivariate Models
+
+From the dataset, multiple features describing Bitcoin blocks and transactions were extracted and used as inputs to classical regression models.
+
+The tested algorithms included:
+
+- Linear Regression and its variants (Ridge, ElasticNet),  
+- Decision Trees,  
+- Random Forest,  
+- Gradient Boosting,  
+- XGBoost.
+
+Tree-based models (especially XGBoost) achieved better results than linear regressions, which justified their further use.
+
+## Hyperparameter Tuning
+
+The next step was to fine-tune the **XGBoost** model, using both manual adjustments and automated grid search with `GridSearchCV`. A 3-fold cross-validation was applied across 18 configurations to find the optimal setup.
+
+**Best parameters from GridSearchCV:**
+```python
+{'learning_rate': 0.06, 'max_depth': 6, 'n_estimators': 330}
+```
+This resulted in improved RMSE and $R^2$ scores, indicating a better model fit and stronger generalization capabilities.
+
+## Test Set Prediction
+
+The tuned XGBoost model was evaluated on an independent test dataset.  
+The results showed:
+
+- **RMSE**: ~0.00065 BTC  
+- **R²**: ~0.23  
+
+This means the model was able to capture part of the variability in transaction fees but not all of it.
+
+<p align="center">
+  <img src="screenshots/VSC/PrognozowanieGridSearchCV.png" alt="PrognozowanieGridSearchCV" width="90%" />
+</p>
+
+The model struggled to predict sudden spikes in fees – especially around Bitcoin halving events – suggesting that more advanced or non-linear approaches may be necessary in the future.
+
+## Univariate Models
+
+This part of the study focused on forecasting transaction fees based on a **single time-based variable** – the block height (`block_height`).  
+This approach simulates a scenario where no detailed transaction-level data is available, and predictions must rely solely on the passage of time.
+
+Two approaches were implemented:
+
+- **Linear Regression** – using only the block number as a predictor.  
+- **SARIMA model** – incorporating seasonality and autocorrelation in the time series.
+
+The training dataset covered data from the first to the third halving, while the test dataset included data from the third halving onward.
+
+**Results:**
+
+- Linear Regression served as a baseline but failed to capture seasonality or sudden changes in transaction fees.  
+- The **SARIMA(1,1,1)(2,1,1)[144]** model better captured the dynamics of changes, including some fee spikes.
+
+<p align="center">
+  <img src="screenshots/VSC/SARIMA_USD.PNG" alt="SARIMA" width="90%" />
+</p>
+
+SARIMA achieved a noticeably better fit to the test data than Linear Regression, although it still struggled with predicting extreme fee spikes.  
+This demonstrates the potential of time series models when only a limited set of input variables is available.
+
+## Summary
+
+The project aimed to analyze and forecast Bitcoin transaction fees using both on-chain and market data.  
+A complete pipeline was developed, covering data acquisition from a Bitcoin Core node (via RPC), processing, and exploratory analysis.
+
+In the modeling stage, both approaches were applied:
+
+- **Multivariate models** (Linear Regression, Ridge, ElasticNet, Random Forest, XGBoost)  
+- **Univariate models** (Linear Regression, SARIMA) based solely on block height (`block_height`)
+
+The best results were achieved by the **XGBoost** model, optimized with `GridSearchCV`  
+(`learning_rate=0.06`, `max_depth=6`, `n_estimators=330`), achieving **R² ≈ 23%** on the test set.  
+Although this is not a high value, it reflects the complexity of the phenomenon – transaction fees are heavily influenced by irregular and hard-to-predict market factors.
+
+Univariate models, despite their simplicity, were unable to capture the variability in the data – **R² for Linear Regression ≈ 2%**, **SARIMA < 0%** – highlighting their limited practical usefulness for accurate forecasting.
+
+It should be noted that the analysis was based on a 1% sample of the data.  
+Using the full dataset could significantly improve model accuracy.  
+Future development directions include neural networks, hybrid approaches, and incorporating market sentiment data (e.g., from social media).
